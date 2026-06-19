@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "Team": {
+      "title": "Team",
+      "description": "Volleyball team details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "city": { "type": "string" },
+        "logo": { "type": "string" },
+        "color": { "type": "string" },
+        "bgColor": { "type": "string" },
+        "stats": { "type": "object" },
+        "players": { "type": "array" }
+      },
+      "required": ["id", "name"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Volleyball match details and live scores",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "type": "string" },
+        "venue": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "score": { "type": "object" },
+        "server": { "type": "string" }
+      },
+      "required": ["id", "status"]
+    },
+    "TicketBooking": {
+      "title": "TicketBooking",
+      "description": "A customer's match ticket booking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "matchId": { "type": "string" },
+        "matchName": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "category": { "type": "string" },
+        "seats": { "type": "array" },
+        "totalPrice": { "type": "number" },
+        "paymentStatus": { "type": "string" },
+        "easypaisaTxnId": { "type": "string" },
+        "bookingTime": { "type": "number" }
+      },
+      "required": ["id", "userId", "matchId"]
+    },
+    "FanPost": {
+      "title": "FanPost",
+      "description": "A post in the public fan feed",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "author": { "type": "string" },
+        "avatar": { "type": "string" },
+        "content": { "type": "string" },
+        "likes": { "type": "number" },
+        "commentsCount": { "type": "number" },
+        "time": { "type": "number" }
+      },
+      "required": ["id", "userId", "content"]
+    }
+  },
+  "firestore": {
+    "teams": {
+      "schema": "Team",
+      "description": "Stores all teams"
+    },
+    "matches": {
+      "schema": "Match",
+      "description": "Stores the matches and live scores"
+    },
+    "bookings": {
+      "schema": "TicketBooking",
+      "description": "Stores all user ticket bookings globally"
+    },
+    "posts": {
+      "schema": "FanPost",
+      "description": "Stores public fan feed posts"
+    }
+  }
+}
