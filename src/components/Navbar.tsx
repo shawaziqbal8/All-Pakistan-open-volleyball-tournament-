@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User } from 'firebase/auth';
+import { User } from '../services/firebaseService';
 import { Bell, Trophy, LogOut, ChevronDown } from 'lucide-react';
 import { TournamentNotification } from '../types';
 

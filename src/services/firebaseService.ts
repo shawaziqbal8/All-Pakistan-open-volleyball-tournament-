@@ -1,53 +1,59 @@
-import { initializeApp } from 'firebase/app';
-import {
-  getAuth,
-  signInWithPopup,
-  GoogleAuthProvider,
-  onAuthStateChanged,
-  User,
-  signOut,
-} from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+// Mock User for Local Simulation without Google Cloud
+export type User = { uid: string; displayName: string; email: string; photoURL: string };
 
-// Initialize Firebase
-const firebaseApp = initializeApp(firebaseConfig);
-export const auth = getAuth(firebaseApp);
-export const db = getFirestore(firebaseApp, (firebaseConfig as any).firestoreDatabaseId);
-
-export const provider = new GoogleAuthProvider();
+let currentUser: User | null = null;
+const AUTH_EVENT = 'mock_auth_changed';
 
 export const initAuth = (
   onAuthSuccess?: (user: User) => void,
   onAuthFailure?: () => void
 ) => {
-  return onAuthStateChanged(auth, async (user: User | null) => {
-    if (user) {
-      if (onAuthSuccess) onAuthSuccess(user);
+  const checkAuth = () => {
+    const savedUser = localStorage.getItem('mock_user');
+    if (savedUser) {
+      currentUser = JSON.parse(savedUser);
+      if (onAuthSuccess) onAuthSuccess(currentUser!);
     } else {
+      currentUser = null;
       if (onAuthFailure) onAuthFailure();
     }
-  });
+  };
+
+  // Initial Check
+  checkAuth();
+
+  // Listen to cross-app-state logins
+  window.addEventListener(AUTH_EVENT, checkAuth);
+  
+  return () => {
+    window.removeEventListener(AUTH_EVENT, checkAuth);
+  };
 };
 
 /**
- * Performs Google Pop-up Sign In and extracts the exact Google Sheets OAuth access token.
+ * Performs mock Sign In for standard Vercel simulation
  */
 export const googleSignIn = async (): Promise<{ user: User } | null> => {
   try {
-    const result = await signInWithPopup(auth, provider);
-    return { user: result.user };
+    const mockUser: User = {
+      uid: 'user_123',
+      displayName: 'Admin User',
+      email: 'admin@tournament.local',
+      photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin'
+    };
+    localStorage.setItem('mock_user', JSON.stringify(mockUser));
+    window.dispatchEvent(new Event(AUTH_EVENT));
+    return { user: mockUser };
   } catch (error: any) {
-    if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
-      console.warn('Google Sign-In Error:', error);
-    }
+    console.warn('Mock Sign-In Error:', error);
     throw error;
   }
 };
 
 /**
- * Returns the cached in-memory access token.
+ * Mocks logout
  */
 export const logoutUser = async (): Promise<void> => {
-  await signOut(auth);
+  localStorage.removeItem('mock_user');
+  window.dispatchEvent(new Event(AUTH_EVENT));
 };

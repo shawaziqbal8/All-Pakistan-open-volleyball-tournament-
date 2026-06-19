@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User } from 'firebase/auth';
-import { initAuth, googleSignIn, logoutUser } from './services/firebaseService';
+import { User, initAuth, googleSignIn, logoutUser } from './services/firebaseService';
 import { Match, FanPost, TournamentNotification, TicketBooking, Team, Toast } from './types';
 import { INITIAL_TEAMS, INITIAL_MATCHES, INITIAL_FAN_FEED, INITIAL_NOTIFICATIONS } from './data/tournamentData';
 import { motion, AnimatePresence } from 'motion/react';

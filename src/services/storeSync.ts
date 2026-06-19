@@ -1,41 +1,37 @@
-import { db } from './firebaseService';
-import { collection, doc, writeBatch, getDocs, onSnapshot, query, setDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { Team, Match, FanPost, TicketBooking, TournamentNotification } from '../types';
 import { INITIAL_TEAMS, INITIAL_MATCHES, INITIAL_FAN_FEED, INITIAL_NOTIFICATIONS } from '../data/tournamentData';
 
+// Generate Event Emitters for reactivity without Firebase
+const dispatchUpdate = (collectionName: string) => {
+  window.dispatchEvent(new Event(`db_update_${collectionName}`));
+};
+
+const getLocalData = (collectionName: string) => {
+  const data = localStorage.getItem(`db_${collectionName}`);
+  return data ? JSON.parse(data) : null;
+};
+
+const setLocalData = (collectionName: string, data: any) => {
+  localStorage.setItem(`db_${collectionName}`, JSON.stringify(data));
+  dispatchUpdate(collectionName);
+};
+
 export const initializeFirestoreWithDefaults = async () => {
   try {
-    const teamsSnap = await getDocs(collection(db, 'teams'));
-    if (teamsSnap.empty) {
-      console.log('Seeding initial Teams into Firestore...');
-      const batch = writeBatch(db);
-      INITIAL_TEAMS.forEach((team) => {
-        batch.set(doc(db, 'teams', team.id), team);
-      });
-      await batch.commit();
+    if (!getLocalData('teams')) {
+      const teamsObj = INITIAL_TEAMS.reduce((acc, team) => ({ ...acc, [team.id]: team }), {});
+      setLocalData('teams', teamsObj);
     }
-
-    const matchesSnap = await getDocs(collection(db, 'matches'));
-    if (matchesSnap.empty) {
-      console.log('Seeding initial Matches into Firestore...');
-      const batch = writeBatch(db);
-      INITIAL_MATCHES.forEach((match) => {
-        batch.set(doc(db, 'matches', match.id), match);
-      });
-      await batch.commit();
+    if (!getLocalData('matches')) {
+      const matchesObj = INITIAL_MATCHES.reduce((acc, match) => ({ ...acc, [match.id]: match }), {});
+      setLocalData('matches', matchesObj);
     }
-
-    const postsSnap = await getDocs(collection(db, 'posts'));
-    if (postsSnap.empty) {
-      console.log('Seeding initial Posts into Firestore...');
-      const batch = writeBatch(db);
-      INITIAL_FAN_FEED.forEach((post) => {
-        batch.set(doc(db, 'posts', post.id), post);
-      });
-      await batch.commit();
+    if (!getLocalData('posts')) {
+      const postsObj = INITIAL_FAN_FEED.reduce((acc, post) => ({ ...acc, [post.id]: post }), {});
+      setLocalData('posts', postsObj);
     }
   } catch (error) {
-    console.warn('Failed to seed default data to Firestore:', error);
+    console.warn('Failed to seed local data:', error);
   }
 };
 
@@ -45,30 +41,39 @@ export const subscribeToCollection = <T>(
   sortField?: string,
   sortDirection: 'asc' | 'desc' = 'desc'
 ) => {
-  let q = collection(db, collectionName) as any;
-  if (sortField) {
-    q = query(q, orderBy(sortField, sortDirection));
-  }
-  
-  return onSnapshot(
-    q,
-    (snapshot: any) => {
-      const results: T[] = [];
-      snapshot.forEach((doc: any) => {
-        results.push(doc.data() as T);
+  const updateData = () => {
+    const dataObj = getLocalData(collectionName) || {};
+    let results = Object.values(dataObj) as T[];
+    
+    if (sortField) {
+      results.sort((a: any, b: any) => {
+        if (a[sortField] < b[sortField]) return sortDirection === 'asc' ? -1 : 1;
+        if (a[sortField] > b[sortField]) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
       });
-      onUpdate(results);
-    },
-    (error: any) => {
-      console.warn(`Error subscribing to ${collectionName}:`, error);
     }
-  );
+    onUpdate(results);
+  };
+
+  // Initial call
+  updateData();
+
+  // Listen to updates
+  const eventName = `db_update_${collectionName}`;
+  window.addEventListener(eventName, updateData);
+  
+  // Return unsubscribe function
+  return () => {
+    window.removeEventListener(eventName, updateData);
+  };
 };
 
 export const saveToFirebase = async (collectionName: string, data: any) => {
   if (!data.id) return;
   try {
-    await setDoc(doc(db, collectionName, data.id), data, { merge: true });
+    const dataObj = getLocalData(collectionName) || {};
+    dataObj[data.id] = { ...dataObj[data.id], ...data };
+    setLocalData(collectionName, dataObj);
   } catch (err) {
     console.warn(`Failed to save to ${collectionName}:`, err);
     throw err;
@@ -77,7 +82,9 @@ export const saveToFirebase = async (collectionName: string, data: any) => {
 
 export const deleteFromFirebase = async (collectionName: string, id: string) => {
   try {
-    await deleteDoc(doc(db, collectionName, id));
+    const dataObj = getLocalData(collectionName) || {};
+    delete dataObj[id];
+    setLocalData(collectionName, dataObj);
   } catch (err) {
     console.warn(`Failed to delete from ${collectionName}:`, err);
     throw err;

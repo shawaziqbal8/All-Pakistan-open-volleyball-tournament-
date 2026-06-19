@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User } from 'firebase/auth';
+import { User } from '../services/firebaseService';
 import { Match, Seat, TicketBooking, Team } from '../types';
 import { saveToFirebase } from '../services/storeSync';
 import { QRCodeSVG } from 'qrcode.react';
