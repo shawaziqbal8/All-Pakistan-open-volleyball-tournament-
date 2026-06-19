@@ -69,18 +69,20 @@ service cloud.firestore {
 
     // Bookings
     match /bookings/{bookingId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isSignedIn() && isValidBooking(incoming());
       allow update: if false; // immutable
       allow delete: if false; // immutable
     }
 
     match /registrations/{registrationId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     match /ads/{adId} {
-      allow read, write: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
   }
 }
