@@ -1,37 +1,88 @@
+import { db, auth } from './firebaseService';
+import { collection, doc, writeBatch, getDocs, onSnapshot, query, setDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { Team, Match, FanPost, TicketBooking, TournamentNotification } from '../types';
 import { INITIAL_TEAMS, INITIAL_MATCHES, INITIAL_FAN_FEED, INITIAL_NOTIFICATIONS } from '../data/tournamentData';
 
-// Generate Event Emitters for reactivity without Firebase
-const dispatchUpdate = (collectionName: string) => {
-  window.dispatchEvent(new Event(`db_update_${collectionName}`));
-};
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
 
-const getLocalData = (collectionName: string) => {
-  const data = localStorage.getItem(`db_${collectionName}`);
-  return data ? JSON.parse(data) : null;
-};
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
 
-const setLocalData = (collectionName: string, data: any) => {
-  localStorage.setItem(`db_${collectionName}`, JSON.stringify(data));
-  dispatchUpdate(collectionName);
-};
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
+      tenantId: auth?.currentUser?.tenantId,
+      providerInfo: auth?.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 export const initializeFirestoreWithDefaults = async () => {
   try {
-    if (!getLocalData('teams')) {
-      const teamsObj = INITIAL_TEAMS.reduce((acc, team) => ({ ...acc, [team.id]: team }), {});
-      setLocalData('teams', teamsObj);
+    const teamsSnap = await getDocs(collection(db, 'teams'));
+    if (teamsSnap.empty) {
+      console.log('Seeding initial Teams into Firestore...');
+      const batch = writeBatch(db);
+      INITIAL_TEAMS.forEach((team) => {
+        batch.set(doc(db, 'teams', team.id), team);
+      });
+      await batch.commit();
     }
-    if (!getLocalData('matches')) {
-      const matchesObj = INITIAL_MATCHES.reduce((acc, match) => ({ ...acc, [match.id]: match }), {});
-      setLocalData('matches', matchesObj);
+
+    const matchesSnap = await getDocs(collection(db, 'matches'));
+    if (matchesSnap.empty) {
+      console.log('Seeding initial Matches into Firestore...');
+      const batch = writeBatch(db);
+      INITIAL_MATCHES.forEach((match) => {
+        batch.set(doc(db, 'matches', match.id), match);
+      });
+      await batch.commit();
     }
-    if (!getLocalData('posts')) {
-      const postsObj = INITIAL_FAN_FEED.reduce((acc, post) => ({ ...acc, [post.id]: post }), {});
-      setLocalData('posts', postsObj);
+
+    const postsSnap = await getDocs(collection(db, 'posts'));
+    if (postsSnap.empty) {
+      console.log('Seeding initial Posts into Firestore...');
+      const batch = writeBatch(db);
+      INITIAL_FAN_FEED.forEach((post) => {
+        batch.set(doc(db, 'posts', post.id), post);
+      });
+      await batch.commit();
     }
   } catch (error) {
-    console.warn('Failed to seed local data:', error);
+    console.warn('Failed to seed default data to Firestore:', error);
   }
 };
 
@@ -41,52 +92,40 @@ export const subscribeToCollection = <T>(
   sortField?: string,
   sortDirection: 'asc' | 'desc' = 'desc'
 ) => {
-  const updateData = () => {
-    const dataObj = getLocalData(collectionName) || {};
-    let results = Object.values(dataObj) as T[];
-    
-    if (sortField) {
-      results.sort((a: any, b: any) => {
-        if (a[sortField] < b[sortField]) return sortDirection === 'asc' ? -1 : 1;
-        if (a[sortField] > b[sortField]) return sortDirection === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    onUpdate(results);
-  };
-
-  // Initial call
-  updateData();
-
-  // Listen to updates
-  const eventName = `db_update_${collectionName}`;
-  window.addEventListener(eventName, updateData);
+  let q = collection(db, collectionName) as any;
+  if (sortField) {
+    q = query(q, orderBy(sortField, sortDirection));
+  }
   
-  // Return unsubscribe function
-  return () => {
-    window.removeEventListener(eventName, updateData);
-  };
+  return onSnapshot(
+    q,
+    (snapshot: any) => {
+      const results: T[] = [];
+      snapshot.forEach((doc: any) => {
+        results.push(doc.data() as T);
+      });
+      onUpdate(results);
+    },
+    (error: any) => {
+      handleFirestoreError(error, OperationType.LIST, collectionName);
+    }
+  );
 };
 
 export const saveToFirebase = async (collectionName: string, data: any) => {
   if (!data.id) return;
   try {
-    const dataObj = getLocalData(collectionName) || {};
-    dataObj[data.id] = { ...dataObj[data.id], ...data };
-    setLocalData(collectionName, dataObj);
+    await setDoc(doc(db, collectionName, data.id), data, { merge: true });
   } catch (err) {
-    console.warn(`Failed to save to ${collectionName}:`, err);
-    throw err;
+    handleFirestoreError(err, OperationType.WRITE, collectionName);
   }
 };
 
 export const deleteFromFirebase = async (collectionName: string, id: string) => {
   try {
-    const dataObj = getLocalData(collectionName) || {};
-    delete dataObj[id];
-    setLocalData(collectionName, dataObj);
+    await deleteDoc(doc(db, collectionName, id));
   } catch (err) {
-    console.warn(`Failed to delete from ${collectionName}:`, err);
-    throw err;
+    handleFirestoreError(err, OperationType.DELETE, collectionName);
   }
 };
+

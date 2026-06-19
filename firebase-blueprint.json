@@ -2,88 +2,81 @@
   "entities": {
     "Team": {
       "title": "Team",
-      "description": "Volleyball team details",
+      "description": "A team participating in the tournament.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
         "city": { "type": "string" },
         "logo": { "type": "string" },
-        "color": { "type": "string" },
-        "bgColor": { "type": "string" },
-        "stats": { "type": "object" },
-        "players": { "type": "array" }
+        "status": { "type": "string" }
       },
-      "required": ["id", "name"]
+      "required": ["id", "name", "city", "logo", "status"]
     },
     "Match": {
       "title": "Match",
-      "description": "Volleyball match details and live scores",
+      "description": "A match in the tournament.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "status": { "type": "string" },
-        "venue": { "type": "string" },
+        "teamA": { "$ref": "#/entities/Team" },
+        "teamB": { "$ref": "#/entities/Team" },
         "date": { "type": "string" },
         "time": { "type": "string" },
-        "score": { "type": "object" },
-        "server": { "type": "string" }
+        "status": { "type": "string" },
+        "score": {
+          "type": "object",
+          "properties": {
+            "setsA": { "type": "number" },
+            "setsB": { "type": "number" }
+          }
+        }
       },
-      "required": ["id", "status"]
+      "required": ["id", "teamA", "teamB", "date", "time", "status", "score"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "A post in the fan feed.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "author": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "likes": { "type": "number" }
+      },
+      "required": ["id", "author", "content", "timestamp", "likes"]
     },
     "TicketBooking": {
       "title": "TicketBooking",
-      "description": "A customer's match ticket booking",
+      "description": "A booking made by a fan.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "userId": { "type": "string" },
         "matchId": { "type": "string" },
-        "matchName": { "type": "string" },
-        "customerName": { "type": "string" },
-        "customerEmail": { "type": "string" },
-        "category": { "type": "string" },
-        "seats": { "type": "array" },
-        "totalPrice": { "type": "number" },
-        "paymentStatus": { "type": "string" },
-        "easypaisaTxnId": { "type": "string" },
-        "bookingTime": { "type": "number" }
-      },
-      "required": ["id", "userId", "matchId"]
-    },
-    "FanPost": {
-      "title": "FanPost",
-      "description": "A post in the public fan feed",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
+        "seatIds": { "type": "array" },
         "userId": { "type": "string" },
-        "author": { "type": "string" },
-        "avatar": { "type": "string" },
-        "content": { "type": "string" },
-        "likes": { "type": "number" },
-        "commentsCount": { "type": "number" },
-        "time": { "type": "number" }
+        "timestamp": { "type": "string" }
       },
-      "required": ["id", "userId", "content"]
+      "required": ["id", "matchId", "seatIds", "userId", "timestamp"]
     }
   },
   "firestore": {
     "teams": {
-      "schema": "Team",
-      "description": "Stores all teams"
+      "schema": "#/entities/Team",
+      "description": "List of active teams."
     },
     "matches": {
-      "schema": "Match",
-      "description": "Stores the matches and live scores"
-    },
-    "bookings": {
-      "schema": "TicketBooking",
-      "description": "Stores all user ticket bookings globally"
+      "schema": "#/entities/Match",
+      "description": "Matches played or scheduled."
     },
     "posts": {
-      "schema": "FanPost",
-      "description": "Stores public fan feed posts"
+      "schema": "#/entities/Post",
+      "description": "User posts in the fan feed."
+    },
+    "bookings": {
+      "schema": "#/entities/TicketBooking",
+      "description": "Bookings for matches."
     }
   }
 }

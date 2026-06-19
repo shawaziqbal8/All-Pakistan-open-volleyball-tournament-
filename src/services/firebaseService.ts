@@ -1,59 +1,47 @@
-// Mock User for Local Simulation without Google Cloud
-export type User = { uid: string; displayName: string; email: string; photoURL: string };
+import { initializeApp } from 'firebase/app';
+import {
+  getAuth,
+  signInWithPopup,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  User,
+  signOut,
+} from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import firebaseConfig from '../../firebase-applet-config.json';
 
-let currentUser: User | null = null;
-const AUTH_EVENT = 'mock_auth_changed';
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
+export const auth = getAuth(app);
+export const provider = new GoogleAuthProvider();
+
+export type { User };
 
 export const initAuth = (
   onAuthSuccess?: (user: User) => void,
   onAuthFailure?: () => void
 ) => {
-  const checkAuth = () => {
-    const savedUser = localStorage.getItem('mock_user');
-    if (savedUser) {
-      currentUser = JSON.parse(savedUser);
-      if (onAuthSuccess) onAuthSuccess(currentUser!);
+  return onAuthStateChanged(auth, async (user: User | null) => {
+    if (user) {
+      if (onAuthSuccess) onAuthSuccess(user);
     } else {
-      currentUser = null;
       if (onAuthFailure) onAuthFailure();
     }
-  };
-
-  // Initial Check
-  checkAuth();
-
-  // Listen to cross-app-state logins
-  window.addEventListener(AUTH_EVENT, checkAuth);
-  
-  return () => {
-    window.removeEventListener(AUTH_EVENT, checkAuth);
-  };
+  });
 };
 
-/**
- * Performs mock Sign In for standard Vercel simulation
- */
 export const googleSignIn = async (): Promise<{ user: User } | null> => {
   try {
-    const mockUser: User = {
-      uid: 'user_123',
-      displayName: 'Admin User',
-      email: 'admin@tournament.local',
-      photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin'
-    };
-    localStorage.setItem('mock_user', JSON.stringify(mockUser));
-    window.dispatchEvent(new Event(AUTH_EVENT));
-    return { user: mockUser };
+    const result = await signInWithPopup(auth, provider);
+    return { user: result.user };
   } catch (error: any) {
-    console.warn('Mock Sign-In Error:', error);
+    if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
+      console.warn('Google Sign-In Error:', error);
+    }
     throw error;
   }
 };
 
-/**
- * Mocks logout
- */
 export const logoutUser = async (): Promise<void> => {
-  localStorage.removeItem('mock_user');
-  window.dispatchEvent(new Event(AUTH_EVENT));
+  await signOut(auth);
 };

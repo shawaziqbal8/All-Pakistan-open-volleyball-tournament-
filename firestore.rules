@@ -1,38 +1,86 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Basic Auth Check
-    function isSignedIn() { return request.auth != null; }
-    
+    // 1. Global Safety Net
     match /{document=**} {
-      allow read, write: if false; // Default deny
+      allow read, write: if false;
     }
 
-    // Teams: Authenticated users can read and write to sync globally
+    // Primitive Helpers
+    function isSignedIn() { return request.auth != null; }
+    function existing() { return resource.data; }
+    function incoming() { return request.resource.data; }
+    
+    // Example validators
+    function isValidTeam(data) {
+      return data.keys().hasAll(['id', 'name', 'city', 'logo', 'status'])
+        && data.id is string
+        && data.name is string
+        && data.city is string
+        && data.logo is string
+        && data.status is string;
+    }
+    
+    function isValidMatch(data) {
+      return data.keys().hasAll(['id', 'teamA', 'teamB', 'date', 'time', 'status', 'score'])
+        && data.id is string;
+    }
+    
+    function isValidPost(data) {
+      return data.keys().hasAll(['id', 'author', 'content', 'timestamp', 'likes'])
+        && data.id is string
+        && data.author is string
+        && data.content is string
+        && data.likes is number;
+    }
+    
+    function isValidBooking(data) {
+      return data.keys().hasAll(['id', 'matchId', 'seatIds', 'userId', 'timestamp'])
+        && data.id is string
+        && data.matchId is string
+        && data.userId is string
+        && data.userId == request.auth.uid;
+    }
+
+    // Teams
     match /teams/{teamId} {
-      allow read: if true; // Public can read team data
-      allow create, update: if isSignedIn(); // Any authenticated user can update for demo purposes
+      allow read: if true; // Public list
+      allow create: if isSignedIn() && isValidTeam(incoming());
+      allow update: if isSignedIn() && isValidTeam(incoming());
+      allow delete: if isSignedIn();
     }
 
     // Matches
     match /matches/{matchId} {
       allow read: if true;
-      allow create, update: if isSignedIn();
+      allow create: if isSignedIn() && isValidMatch(incoming());
+      allow update: if isSignedIn() && isValidMatch(incoming());
+      allow delete: if isSignedIn();
+    }
+
+    // Posts
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidPost(incoming());
+      allow update: if isSignedIn() && isValidPost(incoming());
+      allow delete: if isSignedIn();
     }
 
     // Bookings
     match /bookings/{bookingId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid; // Read own
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      // Allow updates to paymentstatus etc if it's the owner (for demo)
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidBooking(incoming());
+      allow update: if false; // immutable
+      allow delete: if false; // immutable
     }
 
-    // Fan Feed Posts
-    match /posts/{postId} {
-      allow read: if true; // Public posts
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn(); // Allow liking (any user can like)
+    match /registrations/{registrationId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /ads/{adId} {
+      allow read, write: if isSignedIn();
     }
   }
 }
